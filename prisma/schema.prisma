@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Auth.js (NextAuth) ----------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  employee      Employee?
+
+  // Id of the dedicated Google Calendar we create for this user's shifts,
+  // cached after first creation so we don't have to search for it every sync.
+  workCalendarId String?
+
+  createdAt DateTime @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------- App domain ----------
+
+// One row per person in the uploaded roster. Not every Employee has
+// logged in yet, so userId is optional until they complete the
+// first-login "pick your name" step.
+model Employee {
+  id             String  @id @default(cuid())
+  name           String
+  employeeNumber String  @unique
+  userId         String? @unique
+  user           User?   @relation(fields: [userId], references: [id])
+
+  shifts       Shift[]
+  syncedEvents SyncedShiftEvent[]
+
+  createdAt DateTime @default(now())
+}
+
+// One uploaded schedule export. Re-uploading a period replaces the
+// Shift rows that fall within its date range.
+model SchedulePeriod {
+  id         String   @id @default(cuid())
+  orgUnit    String
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+  uploadedAt DateTime @default(now())
+  uploadedBy String
+
+  shifts Shift[]
+}
+
+model Shift {
+  id         String         @id @default(cuid())
+  periodId   String
+  period     SchedulePeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date      DateTime @db.Date
+  startTime String // "HH:MM"
+  endTime   String // "HH:MM", may be earlier than startTime for overnight shifts
+  isAbsence Boolean  @default(false) // parsed from the "FJARVERA" suffix - leave, not a work shift
+  rawText   String
+
+  // A day can have more than one shift (split shifts), so the day alone
+  // isn't a unique key - the time range is part of the shift's identity.
+  @@unique([employeeId, date, startTime, endTime])
+}
+
+// Tracks what we last pushed to a given employee's Google Calendar,
+// keyed by employee+date+time rather than Shift.id so it survives shifts
+// being deleted/replaced on re-upload. Sync diffs desired Shifts against
+// this table to decide what to insert/update/delete.
+model SyncedShiftEvent {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date      DateTime @db.Date
+  startTime String
+  endTime   String
+  isAbsence Boolean
+
+  googleCalendarId String
+  googleEventId    String
+  updatedAt        DateTime @updatedAt
+
+  @@unique([employeeId, date, startTime, endTime])
+}

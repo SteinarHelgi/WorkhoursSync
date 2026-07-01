@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Work shifts importer
 
-## Getting Started
+Admin uploads the monthly shift-schedule `.xlsx` export. Workers sign in with
+Google and click a button to push their upcoming shifts (and leave/absence
+entries) into a dedicated "Work Shifts" calendar in their own Google account.
+Re-syncing after a schedule change updates/removes events instead of
+duplicating them.
 
-First, run the development server:
+## One-time setup
 
-```bash
+### 1. Database (Neon, free tier)
+
+1. Create a project at neon.tech.
+2. Copy the pooled connection string into `DATABASE_URL` in `.env`.
+3. Run migrations:
+   ```
+   npx prisma migrate dev --name init
+   ```
+
+### 2. Google OAuth client
+
+1. In the Google Cloud Console, create a project and enable the **Google
+   Calendar API**.
+2. Configure the OAuth consent screen:
+   - Keep publishing status as **Testing** (this avoids Google's app
+     verification process entirely).
+   - Add every worker's Google account email under **Test users** (limit of
+     100 - fine for one workplace). Anyone not added here will get an
+     "access blocked" screen when they try to sign in.
+3. Create an **OAuth client ID** (Web application) with authorized redirect
+   URI:
+   - `http://localhost:3000/api/auth/callback/google` for local dev
+   - `https://<your-domain>/api/auth/callback/google` for production
+4. Put the client ID/secret into `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`.
+5. Generate `AUTH_SECRET` with `npx auth secret`.
+6. Set `ADMIN_EMAILS` to a comma-separated list of Google emails allowed to
+   upload schedules at `/admin`.
+
+See `.env.example` for the full list.
+
+### 3. Run locally
+
+```
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Admin uploads the schedule at `/admin`.
+- Workers sign in at `/`, pick their name from the roster on first login,
+  then click "Add shifts to Google Calendar".
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 4. Deploy (Vercel, free tier)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Import the repo into Vercel.
+2. Set the same environment variables as `.env.example` in the Vercel
+   project settings.
+3. Add the production callback URL to the Google OAuth client's authorized
+   redirect URIs (see step 2 above).
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Each month, re-uploading the schedule at `/admin` replaces that period's
+  shifts - workers just click sync again to pick up changes.
+- "FJARVERA" entries in the source file are absences/leave and are pushed as
+  separate, visually distinct calendar events rather than being skipped.
+- The employee roster only has names + employee numbers (no email), so a
+  worker's Google account is linked to their roster row via a one-time
+  "pick your name" step after first sign-in.

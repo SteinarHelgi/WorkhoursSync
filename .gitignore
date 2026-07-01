@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# real employee data - never commit
+/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
