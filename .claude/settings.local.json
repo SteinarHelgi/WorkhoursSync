@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -m pip --version)",
+      "Bash(npm --version)",
+      "Bash(npx --yes create-next-app@latest . --typescript --eslint --tailwind --app --src-dir --import-alias \"@/*\" --use-npm --turbopack --no-yes)",
+      "Bash(mv /home/steinar/projects/workhours_importer/data /tmp/wh_data_backup && ls -la /home/steinar/projects/workhours_importer)",
+      "Bash(npx --yes create-next-app@latest . --typescript --eslint --tailwind --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)"
+    ]
+  }
+}
